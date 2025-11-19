@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI UI Rapid Prototyper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', -apple-system, sans-serif; }
+        
+        .preview-container {
+            background-color: #1e293b;
+            background-image: 
+                linear-gradient(45deg, #334155 25%, transparent 25%), 
+                linear-gradient(-45deg, #334155 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #334155 75%), 
+                linear-gradient(-45deg, transparent 75%, #334155 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .loader {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 3px solid #6366f1;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="h-16 border-b border-slate-700 bg-slate-900/80 backdrop-blur-sm flex items-center justify-between px-6 shrink-0 z-20">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <i class="ri-magic-line text-white text-lg"></i>
+            </div>
+            <h1 class="font-bold text-lg tracking-wide">AI UI <span class="text-indigo-400">Generator</span></h1>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="openHistory()" class="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition">
+                <i class="ri-history-line"></i> 历史记录 <span id="history-count" class="ml-1 px-1.5 py-0.5 bg-indigo-500/20 text-indigo-400 text-xs rounded">0</span>
+            </button>
+            <button onclick="clearPreview()" class="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition">
+                <i class="ri-refresh-line"></i> 清空
+            </button>
+            <button onclick="openSettings()" class="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition">
+                <i class="ri-settings-3-line"></i> API 设置
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        
+        <aside class="w-[420px] border-r border-slate-700 bg-slate-900 flex flex-col z-10 shadow-2xl">
+            
+            <div class="p-5 border-b border-slate-800">
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center gap-2">
+                    <i class="ri-palette-line"></i> 1. 选择设计风格
+                </label>
+                <select id="style-selector" class="w-full bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent block p-2.5 cursor-pointer transition">
+                    <option value="" disabled selected>请选择 UI 风格...</option>
+                </select>
+                <div id="style-preview-box" class="mt-3 p-3 bg-gradient-to-br from-slate-800/50 to-slate-800/30 rounded-lg border border-slate-700 text-xs text-slate-300 hidden fade-in">
+                    <div class="flex items-start gap-2">
+                        <i class="ri-information-line text-indigo-400 mt-0.5"></i>
+                        <p id="style-desc" class="leading-relaxed"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-5 flex-1 flex flex-col min-h-0">
+                <label class="block text-xs font-bold text-slate-400 uppercase mb-3 tracking-wider flex items-center gap-2">
+                    <i class="ri-quill-pen-line"></i> 2. 描述你的需求
+                </label>
+                <textarea id="user-prompt" class="w-full flex-1 bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none mb-4 transition" 
+                    placeholder="例如：设计一个包含用户名、密码输入框和社交登录按钮的登录卡片，要居中显示，带有渐变背景..."></textarea>
+                
+                <button onclick="generateUI()" id="generate-btn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-all transform active:scale-95 shadow-lg shadow-indigo-600/30 flex justify-center items-center gap-2">
+                    <i class="ri-magic-line"></i>
+                    <span class="text-btn">生成 UI 代码</span>
+                    <div class="loader hidden"></div>
+                </button>
+                
+                <!-- 版本控制区域 -->
+                <div id="version-control" class="mt-3 hidden">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs text-slate-400">当前版本: <span id="current-version" class="text-indigo-400 font-medium">v1</span></span>
+                        <button onclick="toggleVersions()" class="text-xs text-slate-400 hover:text-white transition flex items-center gap-1">
+                            <i class="ri-history-line"></i> 版本历史
+                        </button>
+                    </div>
+                    <div id="versions-list" class="hidden space-y-1 max-h-32 overflow-y-auto mb-2 bg-slate-800/30 rounded p-2">
+                        <!-- 版本列表将在这里动态生成 -->
+                    </div>
+                    
+                    <!-- 会话消息历史 -->
+                    <div id="conversation-history" class="mb-3 space-y-2 max-h-48 overflow-y-auto bg-slate-800/30 rounded p-3">
+                        <!-- 会话历史将在这里显示 -->
+                    </div>
+                    
+                    <button onclick="continueEdit()" class="w-full bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 px-3 rounded-lg transition flex items-center justify-center gap-2 mb-2">
+                        <i class="ri-chat-3-line"></i> 继续对话优化
+                    </button>
+                    
+                    <button onclick="newConversation()" class="w-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-sm py-2 px-3 rounded-lg transition flex items-center justify-center gap-2 border border-indigo-500/30">
+                        <i class="ri-add-line"></i> 新建会话
+                    </button>
+                </div>
+                
+                <div class="mt-3 text-xs text-slate-500 text-center">
+                    <i class="ri-lightbulb-line"></i> 提示：描述越详细，生成效果越好
+                </div>
+            </div>
+        </aside>
+
+        <section class="flex-1 flex flex-col min-w-0 relative">
+            <div class="h-12 border-b border-slate-700 bg-slate-900/50 backdrop-blur-sm flex items-center justify-between px-4">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-slate-400 font-mono flex items-center gap-2">
+                        <i class="ri-eye-line"></i> Live Preview
+                    </span>
+                    <div id="preview-status" class="text-xs text-slate-500 hidden">
+                        <i class="ri-time-line"></i> <span id="gen-time"></span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="toggleView('desktop')" id="desktop-btn" class="text-indigo-400 hover:text-white p-1.5 bg-indigo-500/10 rounded transition">
+                        <i class="ri-computer-line"></i>
+                    </button>
+                    <button onclick="toggleView('mobile')" id="mobile-btn" class="text-slate-400 hover:text-white p-1.5 rounded transition">
+                        <i class="ri-smartphone-line"></i>
+                    </button>
+                    <div class="w-px h-4 bg-slate-700 mx-1 my-auto"></div>
+                    <button onclick="copyCode()" class="text-emerald-400 hover:text-emerald-300 text-xs flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition font-medium">
+                        <i class="ri-file-copy-line"></i> 复制代码
+                    </button>
+                    <button onclick="downloadCode()" class="text-blue-400 hover:text-blue-300 text-xs flex items-center gap-1.5 px-3 py-1.5 rounded bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition font-medium">
+                        <i class="ri-download-line"></i> 下载
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 preview-container relative flex justify-center items-center overflow-auto p-8">
+                <div id="iframe-wrapper" class="w-full h-full bg-white shadow-2xl transition-all duration-300 rounded-lg overflow-hidden">
+                    <iframe id="preview-frame" class="w-full h-full border-0" sandbox="allow-scripts allow-same-origin"></iframe>
+                </div>
+                
+                <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none">
+                    <i class="ri-image-line text-6xl mb-4 opacity-30"></i>
+                    <p class="text-sm">选择风格并描述需求，开始生成 UI</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 历史记录弹窗 -->
+    <div id="history-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 w-full max-w-4xl max-h-[80vh] rounded-xl border border-slate-700 shadow-2xl flex flex-col fade-in">
+            <div class="flex justify-between items-center p-6 border-b border-slate-700">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="ri-history-line text-indigo-400"></i> 生成历史记录
+                </h3>
+                <button onclick="closeHistory()" class="text-slate-400 hover:text-white transition">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+            
+            <div id="history-list" class="flex-1 overflow-y-auto p-6 space-y-3">
+                <div class="text-center text-slate-500 py-8">
+                    <i class="ri-inbox-line text-4xl mb-2 opacity-30"></i>
+                    <p class="text-sm">暂无生成记录</p>
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-slate-700 flex justify-between">
+                <button onclick="clearAllHistory()" class="px-4 py-2 text-red-400 text-sm hover:bg-red-500/10 rounded-lg transition">
+                    <i class="ri-delete-bin-line"></i> 清空所有记录
+                </button>
+                <button onclick="closeHistory()" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置弹窗 -->
+    <div id="settings-modal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-slate-800 w-full max-w-md rounded-xl border border-slate-700 shadow-2xl p-6 fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="ri-settings-3-line text-indigo-400"></i> API 配置
+                </h3>
+                <button onclick="closeSettings()" class="text-slate-400 hover:text-white transition">
+                    <i class="ri-close-line text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2 font-medium">Base URL</label>
+                    <input type="text" id="api-base" placeholder="https://api.openai.com/v1" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2 font-medium">API Key</label>
+                    <input type="password" id="api-key" placeholder="sk-..." class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2 font-medium">Model Name</label>
+                    <input type="text" id="api-model" placeholder="gpt-4o-mini" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition">
+                    <p class="text-xs text-slate-500 mt-1.5">推荐: gpt-4o-mini, claude-3-5-sonnet</p>
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2 font-medium">Max Tokens</label>
+                    <input type="number" id="api-max-tokens" placeholder="4000" min="500" max="16000" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm text-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition">
+                    <p class="text-xs text-slate-500 mt-1.5">生成代码的最大长度（建议 2000-8000）</p>
+                </div>
+                <div>
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="stream-mode" class="w-4 h-4 text-indigo-600 bg-slate-900 border-slate-700 rounded focus:ring-indigo-500">
+                        <span class="text-sm text-slate-300">启用流式输出 (实时渲染)</span>
+                    </label>
+                    <p class="text-xs text-slate-500 mt-1.5 ml-6">实时显示 AI 生成过程，体验更流畅</p>
+                </div>
+            </div>
+
+            <div class="mt-8 flex justify-end gap-3">
+                <button onclick="closeSettings()" class="px-4 py-2 text-slate-400 text-sm hover:text-white hover:bg-slate-700 rounded-lg transition">取消</button>
+                <button onclick="saveSettings()" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg text-sm font-medium transition">保存配置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 通知 -->
+    <div id="toast" class="fixed top-5 left-1/2 -translate-x-1/2 bg-slate-800 border px-4 py-3 rounded-lg shadow-xl text-sm font-medium hidden z-50 flex items-center gap-2 fade-in min-w-[200px]">
+        <i id="toast-icon" class="ri-checkbox-circle-fill"></i> 
+        <span id="toast-msg">操作成功</span>
+    </div>
+
+    <script>
+        const stylesData = [
+            { id: "business-pro", name: "商务专业", desc: "稳重深蓝色调，适中圆角，柔和阴影，适合企业级应用。使用 Lato 或 Open Sans 字体，强调专业性和可信度。" },
+            { id: "modern-saas", name: "现代 SaaS", desc: "通透的蓝紫渐变，大圆角设计，悬浮卡片效果。使用 Inter 字体，适合现代化 SaaS 产品，注重用户体验。" },
+            { id: "fintech-trust", name: "金融科技", desc: "深绿稳重配色，高端暗色背景，细节精致。使用 Montserrat 字体，传递安全感和专业性，适合金融类产品。" },
+            { id: "minimalist", name: "极致极简", desc: "纯粹的黑白灰，无多余装饰，极细边框。使用 Helvetica 字体，追求功能至上的设计理念。" },
+            { id: "cyberpunk", name: "赛博朋克", desc: "黑底霓虹光效，故障艺术风格，高对比度。使用 Orbitron 或 Rajdhani 字体，充满未来科技感。" },
+            { id: "neumorphism", name: "新拟态", desc: "柔和的内外阴影营造凸起质感，低对比度配色。使用 Nunito 字体，给人舒适温和的视觉体验。" },
+            { id: "glassmorphism", name: "玻璃拟态", desc: "背景模糊效果，半透明白色元素，磨砂玻璃质感。现代时尚，适合展示类页面。" },
+            { id: "playful-kids", name: "儿童趣味", desc: "糖果色系，超大圆角，粗边框设计。使用 Comic Sans 或圆体，充满童趣和活力。" },
+            { id: "dark-matter", name: "极客暗黑", desc: "深灰层级分明，代码编辑器风格。使用 Fira Code 或 JetBrains Mono 字体，适合开发者工具。" },
+            { id: "retro-80s", name: "复古80年代", desc: "像素风或合成器波风格，鲜艳的粉紫黄配色，粗黑边框。充满怀旧气息。" },
+            { id: "luxury-gold", name: "高端奢华", desc: "黑金配色，衬线字体，大量留白。传递高端品牌质感，适合奢侈品或高端服务。" },
+            { id: "industrial", name: "工业硬派", desc: "水泥灰主色，警示黄点缀，结构硬朗。适合工业、建筑类应用。" },
+            { id: "eco-nature", name: "生态自然", desc: "森系绿色，米色背景，圆润有机形状。传递环保、自然、健康的理念。" },
+            { id: "tech-blue", name: "科技蓝调", desc: "经典科技蓝，网格背景，数字化元素。适合科技公司、软件产品。" },
+            { id: "warm-coffee", name: "温暖咖啡", desc: "大地色系，舒适温暖，强调阅读体验。适合内容型网站、博客、电商。" },
+{ 
+        id: "aurora-gradient", 
+        name: "极光渐变", 
+        desc: "流动的青紫粉极光色彩,流体动画效果,半透明层叠。使用 Poppins 字体,营造梦幻科技感,适合创意类产品。" 
+    },
+    { 
+        id: "medical-clean", 
+        name: "医疗洁净", 
+        desc: "纯净的蓝白色系,大量留白,清晰的层级结构。使用 Roboto 字体,传递专业可靠的医疗形象。" 
+    },
+    { 
+        id: "neon-tokyo", 
+        name: "霓虹东京", 
+        desc: "深夜城市氛围,粉紫霓虹灯效,日式街头元素。使用 Noto Sans JP 字体,充满都市夜生活气息。" 
+    },
+    { 
+        id: "brutalism", 
+        name: "粗野主义", 
+        desc: "粗犷的几何形状,强烈的色块对比,原始混凝土质感。使用 Arial Black 字体,强调原始力量感。" 
+    },
+    { 
+        id: "pastel-dream", 
+        name: "马卡龙梦境", 
+        desc: "柔和的马卡龙配色,轻盈的阴影,圆润的气泡元素。使用 Quicksand 字体,营造甜美梦幻氛围。" 
+    },
+    { 
+        id: "swiss-design", 
+        name: "瑞士极简", 
+        desc: "网格系统主导,无衬线字体,黑白红经典配色。使用 Helvetica Neue 字体,追求理性与秩序。" 
+    },
+    { 
+        id: "vaporwave", 
+        name: "蒸汽波", 
+        desc: "粉紫青渐变,复古雕塑元素,故障艺术叠加。使用 Courier New 字体,充满网络怀旧美学。" 
+    },
+    { 
+        id: "organic-fluid", 
+        name: "有机流体", 
+        desc: "不规则曲线形状,流动的斑块效果,柔和的渐变。使用 Comfortaa 字体,展现自然生命力。" 
+    },
+    { 
+        id: "newspaper-classic", 
+        name: "报纸古典", 
+        desc: "黑白分栏布局,衬线字体为主,强调内容密度。使用 Georgia 或 Times 字体,传统媒体质感。" 
+    },
+    { 
+        id: "holographic", 
+        name: "全息投影", 
+        desc: "彩虹光谱渐变,镭射反光效果,未来感边框。使用 Exo 2 字体,科幻高级感,适合前沿科技产品。" 
+    },
+    { 
+        id: "scandinavian", 
+        name: "北欧简约", 
+        desc: "白色主导,淡蓝灰点缀,木纹质感元素。使用 Source Sans Pro 字体,宁静舒适的北欧风格。" 
+    },
+    { 
+        id: "graffiti-street", 
+        name: "街头涂鸦", 
+        desc: "大胆的色彩碰撞,手绘风格元素,倾斜动态排版。使用 Bangers 或手写字体,充满街头文化活力。" 
+    },
+    { 
+        id: "art-deco", 
+        name: "装饰艺术", 
+        desc: "几何对称图案,金色线条装饰,黑金配色。使用 Playfair Display 字体,复古奢华的20年代风格。" 
+    },
+    { 
+        id: "game-arcade", 
+        name: "街机游戏", 
+        desc: "像素风格图标,高饱和度配色,8-bit 音效视觉化。使用 Press Start 2P 字体,怀旧游戏厅氛围。" 
+    },
+    { 
+        id: "corporate-red", 
+        name: "企业正红", 
+        desc: "商务红为主色,深灰辅助色,强调权威感。使用 Roboto Condensed 字体,适合传统企业、政务系统。" 
+    },
+    { 
+        id: "sunset-gradient", 
+        name: "日落渐变", 
+        desc: "橙红黄紫的日落色彩,温暖的渐变过渡,柔和光晕。使用 Raleway 字体,浪漫温馨的氛围。" 
+    },
+    { 
+        id: "terminal-hacker", 
+        name: "终端黑客", 
+        desc: "黑底绿字,命令行风格,扫描线效果。使用 Source Code Pro 字体,极客与黑客文化风格。" 
+    },
+    { 
+        id: "watercolor-soft", 
+        name: "水彩柔和", 
+        desc: "水彩晕染效果,柔和的边缘,艺术感纹理。使用 Merriweather 字体,文艺清新,适合创意工作室。" 
+    },
+    { 
+        id: "neon-synthwave", 
+        name: "合成波浪", 
+        desc: "紫粉渐变背景,网格地平线,80年代未来主义。使用 Audiowide 字体,复古未来感,适合音乐类产品。" 
+    },
+    { 
+        id: "metro-modern", 
+        name: "都会现代", 
+        desc: "方块瓷砖布局,纯色色块,微软 Metro 风格。使用 Segoe UI 字体,简洁高效的现代界面。" 
+    },
+    { 
+        id: "cosmic-space", 
+        name: "宇宙星空", 
+        desc: "深邃星空背景,星云渐变,粒子光效。使用 Space Mono 字体,探索宇宙的神秘感。" 
+    },
+    { 
+        id: "paper-craft", 
+        name: "纸艺手工", 
+        desc: "分层纸张效果,柔和阴影,材质纹理。使用 Indie Flower 字体,温暖手工质感,适合教育类产品。" 
+    },
+    { 
+        id: "military-tactical", 
+        name: "军事战术", 
+        desc: "军绿迷彩色系,硬朗边框,功能性图标。使用 Teko 字体,强调实用性与力量感。" 
+    },
+    { 
+        id: "candy-pop", 
+        name: "糖果爆炸", 
+        desc: "高饱和度糖果色,波普艺术风格,圆点图案。使用 Fredoka One 字体,活力四射的年轻化设计。" 
+    },
+    { 
+        id: "zen-minimal", 
+        name: "禅意留白", 
+        desc: "极致留白,水墨元素,东方美学。使用宋体或明朝体,宁静致远的禅意空间。" 
+    }
+        ];
+
+        let currentGeneratedCode = "";
+        let generationStartTime = 0;
+        let generationHistory = [];
+        let currentVersions = []; // 当前会话的版本管理
+        let currentVersionIndex = 0;
+        let currentSessionId = null;
+        let conversationMessages = []; // 会话消息历史
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+            initStyleSelector();
+            loadHistory();
+            updateHistoryCount();
+        });
+
+        function initStyleSelector() {
+            const select = document.getElementById('style-selector');
+            select.innerHTML = '<option value="" disabled selected>请选择 UI 风格...</option>';
+            stylesData.forEach(style => {
+                const option = document.createElement('option');
+                option.value = style.id;
+                option.textContent = style.name;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', (e) => {
+                const style = stylesData.find(s => s.id === e.target.value);
+                if(style) {
+                    const box = document.getElementById('style-preview-box');
+                    const desc = document.getElementById('style-desc');
+                    box.classList.remove('hidden');
+                    desc.textContent = style.desc;
+                }
+            });
+        }
+
+        function toggleView(mode) {
+            const wrapper = document.getElementById('iframe-wrapper');
+            const desktopBtn = document.getElementById('desktop-btn');
+            const mobileBtn = document.getElementById('mobile-btn');
+            
+            if (mode === 'mobile') {
+                wrapper.style.width = '375px';
+                wrapper.style.maxHeight = '667px';
+                mobileBtn.classList.add('text-indigo-400', 'bg-indigo-500/10');
+                mobileBtn.classList.remove('text-slate-400');
+                desktopBtn.classList.remove('text-indigo-400', 'bg-indigo-500/10');
+                desktopBtn.classList.add('text-slate-400');
+            } else {
+                wrapper.style.width = '100%';
+                wrapper.style.maxHeight = 'none';
+                desktopBtn.classList.add('text-indigo-400', 'bg-indigo-500/10');
+                desktopBtn.classList.remove('text-slate-400');
+                mobileBtn.classList.remove('text-indigo-400', 'bg-indigo-500/10');
+                mobileBtn.classList.add('text-slate-400');
+            }
+        }
+
+        async function generateUI() {
+            const config = getSettings();
+            if (!config.key) {
+                openSettings();
+                showToast('请先配置 API Key', 'error');
+                return;
+            }
+            
+            const styleId = document.getElementById('style-selector').value;
+            const userPrompt = document.getElementById('user-prompt').value.trim();
+            
+            if (!styleId) { 
+                showToast('请选择一种 UI 风格', 'error'); 
+                return; 
+            }
+            if (!userPrompt) { 
+                showToast('请输入需求描述', 'error'); 
+                return; 
+            }
+
+            const selectedStyle = stylesData.find(s => s.id === styleId);
+            generationStartTime = Date.now();
+
+            const btn = document.getElementById('generate-btn');
+            const btnText = btn.querySelector('.text-btn');
+            const loader = btn.querySelector('.loader');
+            const emptyState = document.getElementById('empty-state');
+            
+            btn.disabled = true;
+            btnText.textContent = config.stream ? "AI 实时生成中..." : "AI 正在设计中...";
+            loader.classList.remove('hidden');
+            emptyState.style.display = 'none';
+            
+            // 创建新会话ID（如果是首次生成）
+            if (!currentSessionId) {
+                currentSessionId = Date.now();
+                currentVersions = [];
+                currentVersionIndex = 0;
+                conversationMessages = [];
+            }
+            
+            const systemPrompt = `你是一个专业的前端 UI 工程师。你的任务是根据用户的描述和指定的 UI 风格，编写一个可以在浏览器中直接运行的完整 HTML 页面。
+
+【设计规范】
+风格名称: ${selectedStyle.name}
+风格特征: ${selectedStyle.desc}
+技术栈: 
+- HTML5
+- Tailwind CSS (CDN: https://cdn.tailwindcss.com)
+- Remix Icon (CDN: https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css)
+
+【核心要求】
+1. 输出完整的 HTML 文档结构（包含 <!DOCTYPE html>, <html>, <head>, <body> 等标签）
+2. 必须在 <head> 中引入 Tailwind CSS 和 Remix Icon 的 CDN
+3. 不要使用 markdown 代码块标记（如 \`\`\`html），直接返回纯 HTML 代码
+4. 确保代码可以直接在浏览器中运行，无需额外依赖
+5. 严格按照指定的风格特征进行设计（配色、圆角、阴影、字体等）
+6. 组件必须居中显示（使用 flexbox 或 grid 布局）
+7. 确保响应式设计，在移动端表现良好
+8. 添加适当的交互效果（hover、focus 等状态）
+9. 如果需要 JavaScript 交互，请在 <script> 标签中添加
+10. 使用语义化的 HTML 标签
+
+【示例输出格式】
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Component</title>
+    <script src="https://cdn.tailwindcss.com"><\/script>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body class="min-h-screen flex items-center justify-center bg-gray-100">
+    <!-- 你的 UI 代码 -->
+</body>
+</html>
+
+现在请根据以上要求生成代码。`;
+
+            // 初始化会话消息
+            if (conversationMessages.length === 0) {
+                conversationMessages.push({ role: "system", content: systemPrompt });
+            }
+            
+            // 添加用户消息
+            conversationMessages.push({ role: "user", content: userPrompt });
+
+            try {
+                if (config.stream) {
+                    await generateWithStream(config, userPrompt, selectedStyle);
+                } else {
+                    await generateWithoutStream(config, userPrompt, selectedStyle);
+                }
+            } catch (error) {
+                console.error('Generation error:', error);
+                showToast(`生成失败: ${error.message}`, 'error');
+                emptyState.style.display = 'flex';
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = "生成 UI 代码";
+                loader.classList.add('hidden');
+            }
+        }
+
+        async function generateWithStream(config, userPrompt, selectedStyle) {
+            const response = await fetch(`${config.base}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.key}`
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    messages: conversationMessages,
+                    temperature: 0.7,
+                    max_tokens: config.maxTokens,
+                    stream: true
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedContent = '';
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const content = parsed.choices[0]?.delta?.content;
+                            if (content) {
+                                accumulatedContent += content;
+                                
+                                // 实时更新预览（只在累积了足够内容时）
+                                if (accumulatedContent.length > 200 && accumulatedContent.includes('</head>')) {
+                                    const cleanedContent = accumulatedContent.replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim();
+                                    updatePreview(cleanedContent);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Parse error:', e);
+                        }
+                    }
+                }
+            }
+
+            // 最终清理和更新
+            const finalContent = accumulatedContent.replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim();
+            currentGeneratedCode = finalContent;
+            updatePreview(finalContent);
+            
+            // 保存 AI 回复到会话
+            conversationMessages.push({ role: "assistant", content: finalContent });
+            updateConversationDisplay(userPrompt, finalContent);
+            
+            const genTime = ((Date.now() - generationStartTime) / 1000).toFixed(1);
+            document.getElementById('gen-time').textContent = `生成耗时 ${genTime}s`;
+            document.getElementById('preview-status').classList.remove('hidden');
+            
+            // 保存版本
+            saveVersion(finalContent, userPrompt);
+            
+            // 保存到历史记录
+            saveToHistory(userPrompt, selectedStyle.name, finalContent);
+            
+            // 清空输入框准备下一轮对话
+            document.getElementById('user-prompt').value = '';
+            
+            showToast('UI 生成成功！', 'success');
+        }
+
+        async function generateWithoutStream(config, userPrompt, selectedStyle) {
+            const response = await fetch(`${config.base}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.key}`
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    messages: conversationMessages,
+                    temperature: 0.7,
+                    max_tokens: config.maxTokens
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            let content = data.choices[0].message.content;
+
+            content = content.replace(/^```html\s*/i, '').replace(/```\s*$/i, '');
+            content = content.trim();
+            
+            currentGeneratedCode = content;
+            updatePreview(content);
+            
+            // 保存 AI 回复到会话
+            conversationMessages.push({ role: "assistant", content: content });
+            updateConversationDisplay(userPrompt, content);
+            
+            const genTime = ((Date.now() - generationStartTime) / 1000).toFixed(1);
+            document.getElementById('gen-time').textContent = `生成耗时 ${genTime}s`;
+            document.getElementById('preview-status').classList.remove('hidden');
+            
+            // 保存版本
+            saveVersion(content, userPrompt);
+            
+            // 保存到历史记录
+            saveToHistory(userPrompt, selectedStyle.name, content);
+            
+            // 清空输入框准备下一轮对话
+            document.getElementById('user-prompt').value = '';
+            
+            showToast('UI 生成成功！', 'success');
+        }
+
+        function updatePreview(html) {
+            const iframe = document.getElementById('preview-frame');
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open();
+            doc.write(html);
+            doc.close();
+        }
+
+        function copyCode() {
+            if(!currentGeneratedCode) {
+                showToast('暂无代码可复制', 'error');
+                return;
+            }
+            navigator.clipboard.writeText(currentGeneratedCode).then(() => {
+                showToast('代码已复制到剪贴板', 'success');
+            }).catch(() => {
+                showToast('复制失败，请重试', 'error');
+            });
+        }
+
+        function downloadCode() {
+            if(!currentGeneratedCode) {
+                showToast('暂无代码可下载', 'error');
+                return;
+            }
+            const blob = new Blob([currentGeneratedCode], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ui-component-${Date.now()}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('代码已下载', 'success');
+        }
+
+        function clearPreview() {
+            if (currentSessionId && conversationMessages.length > 1) {
+                if (!confirm('当前会话有内容，确定要清空吗？')) {
+                    return;
+                }
+            }
+            
+            currentGeneratedCode = "";
+            currentSessionId = null;
+            currentVersions = [];
+            currentVersionIndex = 0;
+            conversationMessages = [];
+            
+            const iframe = document.getElementById('preview-frame');
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open();
+            doc.write('');
+            doc.close();
+            document.getElementById('empty-state').style.display = 'flex';
+            document.getElementById('preview-status').classList.add('hidden');
+            document.getElementById('version-control').classList.add('hidden');
+            document.getElementById('conversation-history').innerHTML = '';
+            showToast('预览已清空', 'success');
+        }
+
+        function openSettings() { 
+            document.getElementById('settings-modal').classList.remove('hidden'); 
+        }
+        
+        function closeSettings() { 
+            document.getElementById('settings-modal').classList.add('hidden'); 
+        }
+
+        function saveSettings() {
+            const base = document.getElementById('api-base').value.trim();
+            const key = document.getElementById('api-key').value.trim();
+            const model = document.getElementById('api-model').value.trim();
+            const maxTokens = parseInt(document.getElementById('api-max-tokens').value) || 4000;
+            const stream = document.getElementById('stream-mode').checked;
+            
+            if (!key) {
+                showToast('请输入 API Key', 'error');
+                return;
+            }
+            
+            const config = {
+                base: base || "https://api.openai.com/v1",
+                key: key,
+                model: model || "gpt-4o-mini",
+                maxTokens: maxTokens,
+                stream: stream
+            };
+            
+            localStorage.setItem('ui_gen_config', JSON.stringify(config));
+            closeSettings();
+            showToast('设置已保存', 'success');
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('ui_gen_config');
+            if (saved) {
+                try {
+                    const config = JSON.parse(saved);
+                    document.getElementById('api-base').value = config.base || "https://api.openai.com/v1";
+                    document.getElementById('api-key').value = config.key || "";
+                    document.getElementById('api-model').value = config.model || "gpt-4o-mini";
+                    document.getElementById('api-max-tokens').value = config.maxTokens || 4000;
+                    document.getElementById('stream-mode').checked = config.stream || false;
+                } catch (e) {
+                    console.error('Failed to load settings:', e);
+                }
+            } else {
+                document.getElementById('api-base').value = "https://api.openai.com/v1";
+                document.getElementById('api-model').value = "gpt-4o-mini";
+                document.getElementById('api-max-tokens').value = 4000;
+                document.getElementById('stream-mode').checked = false;
+            }
+        }
+
+        function getSettings() {
+            return {
+                base: document.getElementById('api-base').value.trim() || "https://api.openai.com/v1",
+                key: document.getElementById('api-key').value.trim(),
+                model: document.getElementById('api-model').value.trim() || "gpt-4o-mini",
+                maxTokens: parseInt(document.getElementById('api-max-tokens').value) || 4000,
+                stream: document.getElementById('stream-mode').checked
+            };
+        }
+
+        function showToast(msg, type = 'success') {
+            const toast = document.getElementById('toast');
+            const txt = document.getElementById('toast-msg');
+            const icon = document.getElementById('toast-icon');
+            
+            txt.textContent = msg;
+            
+            toast.classList.remove('border-emerald-500/30', 'text-emerald-400', 'border-red-500/30', 'text-red-400', 'border-yellow-500/30', 'text-yellow-400');
+            
+            if(type === 'error') {
+                toast.classList.add('text-red-400', 'border-red-500/30');
+                icon.className = 'ri-error-warning-fill';
+            } else if(type === 'warning') {
+                toast.classList.add('text-yellow-400', 'border-yellow-500/30');
+                icon.className = 'ri-alert-fill';
+            } else {
+                toast.classList.add('text-emerald-400', 'border-emerald-500/30');
+                icon.className = 'ri-checkbox-circle-fill';
+            }
+
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        // 历史记录管理
+        function saveToHistory(prompt, style, code) {
+            const record = {
+                id: Date.now(),
+                timestamp: new Date().toLocaleString('zh-CN'),
+                prompt: prompt,
+                style: style,
+                code: code,
+                preview: code.substring(0, 200)
+            };
+            
+            generationHistory.unshift(record);
+            if (generationHistory.length > 50) {
+                generationHistory = generationHistory.slice(0, 50);
+            }
+            
+            localStorage.setItem('ui_gen_history', JSON.stringify(generationHistory));
+            updateHistoryCount();
+        }
+
+        function loadHistory() {
+            const saved = localStorage.getItem('ui_gen_history');
+            if (saved) {
+                try {
+                    generationHistory = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to load history:', e);
+                    generationHistory = [];
+                }
+            }
+        }
+
+        function updateHistoryCount() {
+            document.getElementById('history-count').textContent = generationHistory.length;
+        }
+
+        function openHistory() {
+            const modal = document.getElementById('history-modal');
+            const list = document.getElementById('history-list');
+            
+            if (generationHistory.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center text-slate-500 py-8">
+                        <i class="ri-inbox-line text-4xl mb-2 opacity-30"></i>
+                        <p class="text-sm">暂无生成记录</p>
+                    </div>
+                `;
+            } else {
+                list.innerHTML = generationHistory.map(record => `
+                    <div class="bg-slate-900/50 border border-slate-700 rounded-lg p-4 hover:border-indigo-500/50 transition cursor-pointer" onclick="loadHistoryRecord(${record.id})">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 bg-indigo-500/20 text-indigo-400 text-xs rounded">${record.style}</span>
+                                <span class="text-xs text-slate-500">${record.timestamp}</span>
+                            </div>
+                            <button onclick="deleteHistoryRecord(${record.id}, event)" class="text-slate-500 hover:text-red-400 transition">
+                                <i class="ri-delete-bin-line"></i>
+                            </button>
+                        </div>
+                        <p class="text-sm text-slate-300 line-clamp-2">${record.prompt}</p>
+                    </div>
+                `).join('');
+            }
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeHistory() {
+            document.getElementById('history-modal').classList.add('hidden');
+        }
+
+        function loadHistoryRecord(id) {
+            const record = generationHistory.find(r => r.id === id);
+            if (record) {
+                currentGeneratedCode = record.code;
+                updatePreview(record.code);
+                document.getElementById('empty-state').style.display = 'none';
+                closeHistory();
+                showToast('已加载历史记录', 'success');
+            }
+        }
+
+        function deleteHistoryRecord(id, event) {
+            event.stopPropagation();
+            generationHistory = generationHistory.filter(r => r.id !== id);
+            localStorage.setItem('ui_gen_history', JSON.stringify(generationHistory));
+            updateHistoryCount();
+            openHistory();
+            showToast('记录已删除', 'success');
+        }
+
+        function clearAllHistory() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                generationHistory = [];
+                localStorage.setItem('ui_gen_history', JSON.stringify(generationHistory));
+                updateHistoryCount();
+                openHistory();
+                showToast('所有记录已清空', 'success');
+            }
+        }
+
+        // 版本管理功能
+        function saveVersion(code, userPrompt = '') {
+            const version = {
+                id: Date.now(),
+                versionNumber: currentVersions.length + 1,
+                code: code,
+                prompt: userPrompt,
+                timestamp: new Date().toLocaleString('zh-CN')
+            };
+            
+            currentVersions.push(version);
+            currentVersionIndex = currentVersions.length - 1;
+            
+            updateVersionDisplay();
+            document.getElementById('version-control').classList.remove('hidden');
+        }
+
+        function updateVersionDisplay() {
+            const versionSpan = document.getElementById('current-version');
+            versionSpan.textContent = `v${currentVersions[currentVersionIndex]?.versionNumber || 1}`;
+            
+            const versionsList = document.getElementById('versions-list');
+            versionsList.innerHTML = currentVersions.map((v, index) => `
+                <div class="flex items-center justify-between p-2 bg-slate-800/50 rounded hover:bg-slate-800 transition cursor-pointer ${index === currentVersionIndex ? 'border border-indigo-500' : ''}" onclick="switchVersion(${index})">
+                    <div class="flex flex-col gap-1">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-medium ${index === currentVersionIndex ? 'text-indigo-400' : 'text-slate-300'}">v${v.versionNumber}</span>
+                            <span class="text-xs text-slate-500">${v.timestamp}</span>
+                        </div>
+                        ${v.prompt ? `<p class="text-xs text-slate-400 line-clamp-1">${v.prompt}</p>` : ''}
+                    </div>
+                    ${index === currentVersionIndex ? '<i class="ri-check-line text-indigo-400 text-sm"></i>' : ''}
+                </div>
+            `).reverse().join('');
+        }
+
+        function updateConversationDisplay(userPrompt, aiResponse) {
+            const conversationDiv = document.getElementById('conversation-history');
+            const messageItem = document.createElement('div');
+            messageItem.className = 'space-y-2';
+            messageItem.innerHTML = `
+                <div class="flex items-start gap-2">
+                    <div class="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                        <i class="ri-user-line text-indigo-400 text-xs"></i>
+                    </div>
+                    <div class="flex-1 bg-indigo-500/10 rounded-lg p-2 border border-indigo-500/20">
+                        <p class="text-xs text-slate-300">${userPrompt}</p>
+                    </div>
+                </div>
+                <div class="flex items-start gap-2">
+                    <div class="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                        <i class="ri-robot-line text-emerald-400 text-xs"></i>
+                    </div>
+                    <div class="flex-1 bg-emerald-500/10 rounded-lg p-2 border border-emerald-500/20">
+                        <p class="text-xs text-slate-400">✓ 代码已生成 (v${currentVersions.length})</p>
+                    </div>
+                </div>
+            `;
+            conversationDiv.appendChild(messageItem);
+            conversationDiv.scrollTop = conversationDiv.scrollHeight;
+        }
+
+        function toggleVersions() {
+            const versionsList = document.getElementById('versions-list');
+            versionsList.classList.toggle('hidden');
+        }
+
+        function switchVersion(index) {
+            if (index >= 0 && index < currentVersions.length) {
+                currentVersionIndex = index;
+                currentGeneratedCode = currentVersions[index].code;
+                updatePreview(currentGeneratedCode);
+                updateVersionDisplay();
+                showToast(`已切换到版本 v${currentVersions[index].versionNumber}`, 'success');
+            }
+        }
+
+        function newConversation() {
+            if (currentSessionId && conversationMessages.length > 1) {
+                if (!confirm('确定要开始新会话吗？当前会话将被保存到历史记录。')) {
+                    return;
+                }
+            }
+            
+            // 重置会话状态
+            currentSessionId = null;
+            currentVersions = [];
+            currentVersionIndex = 0;
+            conversationMessages = [];
+            currentGeneratedCode = "";
+            
+            // 清空界面
+            document.getElementById('user-prompt').value = '';
+            document.getElementById('conversation-history').innerHTML = '';
+            document.getElementById('version-control').classList.add('hidden');
+            
+            const iframe = document.getElementById('preview-frame');
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open();
+            doc.write('');
+            doc.close();
+            document.getElementById('empty-state').style.display = 'flex';
+            
+            showToast('已创建新会话', 'success');
+        }
+
+        async function continueEdit() {
+            const config = getSettings();
+            if (!config.key) {
+                openSettings();
+                showToast('请先配置 API Key', 'error');
+                return;
+            }
+            
+            if (!currentGeneratedCode || conversationMessages.length === 0) {
+                showToast('请先生成初始版本', 'error');
+                return;
+            }
+
+            const editPrompt = document.getElementById('user-prompt').value.trim();
+            if (!editPrompt) {
+                showToast('请输入优化需求', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('generate-btn');
+            const btnText = btn.querySelector('.text-btn');
+            const loader = btn.querySelector('.loader');
+            
+            btn.disabled = true;
+            btnText.textContent = config.stream ? "AI 优化中..." : "AI 正在优化...";
+            loader.classList.remove('hidden');
+            
+            generationStartTime = Date.now();
+
+            // 添加用户消息到会话历史
+            conversationMessages.push({ role: "user", content: editPrompt });
+
+            try {
+                if (config.stream) {
+                    await continueEditWithStream(config, editPrompt);
+                } else {
+                    await continueEditWithoutStream(config, editPrompt);
+                }
+            } catch (error) {
+                console.error('Edit error:', error);
+                showToast(`优化失败: ${error.message}`, 'error');
+                // 出错时移除最后添加的用户消息
+                conversationMessages.pop();
+            } finally {
+                btn.disabled = false;
+                btnText.textContent = "生成 UI 代码";
+                loader.classList.add('hidden');
+            }
+        }
+
+        async function continueEditWithStream(config, editPrompt) {
+            const response = await fetch(`${config.base}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.key}`
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    messages: conversationMessages,
+                    temperature: 0.7,
+                    max_tokens: config.maxTokens,
+                    stream: true
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let accumulatedContent = '';
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+
+                        try {
+                            const parsed = JSON.parse(data);
+                            const content = parsed.choices[0]?.delta?.content;
+                            if (content) {
+                                accumulatedContent += content;
+                                
+                                if (accumulatedContent.length > 200 && accumulatedContent.includes('</head>')) {
+                                    const cleanedContent = accumulatedContent.replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim();
+                                    updatePreview(cleanedContent);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Parse error:', e);
+                        }
+                    }
+                }
+            }
+
+            const finalContent = accumulatedContent.replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim();
+            currentGeneratedCode = finalContent;
+            updatePreview(finalContent);
+            
+            // 保存 AI 回复到会话
+            conversationMessages.push({ role: "assistant", content: finalContent });
+            updateConversationDisplay(editPrompt, finalContent);
+            
+            const genTime = ((Date.now() - generationStartTime) / 1000).toFixed(1);
+            document.getElementById('gen-time').textContent = `优化耗时 ${genTime}s`;
+            
+            saveVersion(finalContent, editPrompt);
+            
+            // 清空输入框
+            document.getElementById('user-prompt').value = '';
+            
+            showToast('优化成功！', 'success');
+        }
+
+        async function continueEditWithoutStream(config, editPrompt) {
+            const response = await fetch(`${config.base}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.key}`
+                },
+                body: JSON.stringify({
+                    model: config.model,
+                    messages: conversationMessages,
+                    temperature: 0.7,
+                    max_tokens: config.maxTokens
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            let content = data.choices[0].message.content;
+
+            content = content.replace(/^```html\s*/i, '').replace(/```\s*$/i, '').trim();
+            
+            currentGeneratedCode = content;
+            updatePreview(content);
+            
+            // 保存 AI 回复到会话
+            conversationMessages.push({ role: "assistant", content: content });
+            updateConversationDisplay(editPrompt, content);
+            
+            const genTime = ((Date.now() - generationStartTime) / 1000).toFixed(1);
+            document.getElementById('gen-time').textContent = `优化耗时 ${genTime}s`;
+            
+            saveVersion(content, editPrompt);
+            
+            // 清空输入框
+            document.getElementById('user-prompt').value = '';
+            
+            showToast('优化成功！', 'success');
+        }
+
+        function openSettings() { 
+            document.getElementById('settings-modal').classList.remove('hidden'); 
+        }
+        
+        function closeSettings() { 
+            document.getElementById('settings-modal').classList.add('hidden'); 
+        }
+    </script>
+</body>
+</html>
